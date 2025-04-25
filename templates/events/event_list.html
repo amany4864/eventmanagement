@@ -1,0 +1,258 @@
+{% extends 'base.html' %}
+
+{% block title %}Events{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>Upcoming Events</h1>
+            <small class="text-muted">
+                Current time: {{ current_time|date:"Y-m-d H:i:s" }} UTC
+            </small>
+        </div>
+        {% if user.is_authenticated and user.user_type == 'organizer' %}
+            <div class="col-auto">
+                <a href="{% url 'events:create_event' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Create Event
+                </a>
+            </div>
+        {% endif %}
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        {% if events %}
+            {% for event in events %}
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ event.title }}</h5>
+                            <p class="card-text">{{ event.description|truncatewords:30 }}</p>
+                            <div class="mb-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-calendar"></i> {{ event.date|date:"F d, Y - h:i A" }}
+                                </small>
+                            </div>
+                            <div class="mb-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-geo-alt"></i> {{ event.location }}
+                                </small>
+                            </div>
+                            <div class="mb-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-people"></i> Capacity: {{ event.capacity }}
+                                </small>
+                            </div>
+                            <div class="mb-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-cash"></i> Price: <b>₹</b> {{ event.price|floatformat:2 }}
+                                </small>
+                            </div>
+                            <div>
+                                <small class="text-muted">
+                                    <i class="bi bi-person"></i> Organized by: {{ event.organizer.username }}
+                                </small>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <div class="d-flex justify-content-between align-items-center">
+                                {% if event.date >= current_time %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-clock"></i> Upcoming
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">
+                                        <i class="bi bi-clock-history"></i> Past
+                                    </span>
+                                {% endif %}
+
+                                {% if user.is_authenticated %}
+                                    {% if user.user_type != 'organizer' and event.date >= current_time %}
+                                        {% if event.price == 0 %}
+                                            <a href="{% url 'events:book_event' event.id %}" class="btn btn-sm btn-primary">
+                                                <i class="bi bi-ticket-perforated"></i> Book Now (Free)
+                                            </a>
+                                        {% else %}
+                                            <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#paymentModal{{ event.id }}">
+                                                <i class="bi bi-ticket-perforated"></i> Book Now (<b>₹</b>{{ event.price }})
+                                            </button>
+                                        {% endif %}
+                                    {% elif user == event.organizer %}
+                                        <span class="badge bg-info">
+                                            <i class="bi bi-person-check"></i> You're the organizer
+                                        </span>
+                                    {% endif %}
+                                {% else %}
+                                    <a href="{% url 'accounts:login' %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-box-arrow-in-right"></i> Login to Book
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if event.price > 0 %}
+                <!-- Payment Modal -->
+                <div class="modal fade" id="paymentModal{{ event.id }}" tabindex="-1" aria-labelledby="paymentModalLabel{{ event.id }}" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="paymentModalLabel{{ event.id }}">Book Ticket - {{ event.title }}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="paymentForm{{ event.id }}" action="{% url 'events:book_event' event.id %}" method="post">
+                                    {% csrf_token %}
+                                    <div class="mb-3">
+                                        <label class="form-label">Event Details</label>
+                                        <p class="mb-1"><strong>Date:</strong> {{ event.date|date:"F d, Y - h:i A" }}</p>
+                                        <p class="mb-1"><strong>Location:</strong> {{ event.location }}</p>
+                                        <p class="mb-3"><strong>Price:</strong> <b>₹</b>{{ event.price }}</p>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="cardNumber{{ event.id }}" class="form-label">Card Number</label>
+                                        <input type="text" class="form-control" id="cardNumber{{ event.id }}" required pattern="[0-9]{16}" maxlength="16" placeholder="1234 5678 9012 3456">
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="expiryDate{{ event.id }}" class="form-label">Expiry Date</label>
+                                            <input type="text" class="form-control" id="expiryDate{{ event.id }}" required pattern="(0[1-9]|1[0-2])\/([0-9]{2})" placeholder="MM/YY">
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="cvv{{ event.id }}" class="form-label">CVV</label>
+                                            <input type="text" class="form-control" id="cvv{{ event.id }}" required pattern="[0-9]{3}" maxlength="3" placeholder="123">
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="cardName{{ event.id }}" class="form-label">Name on Card</label>
+                                        <input type="text" class="form-control" id="cardName{{ event.id }}" required placeholder="John Doe">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary w-100">Pay <b>₹</b>{{ event.price }} and Book</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        {% else %}
+            <div class="col">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> No upcoming events at the moment.
+                    {% if user.is_authenticated and user.user_type == 'organizer' %}
+                        <a href="{% url 'events:create_event' %}" class="alert-link">Create one now!</a>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    {% if is_paginated %}
+        <nav aria-label="Page navigation" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                    </li>
+                {% endif %}
+
+                {% for num in page_obj.paginator.page_range %}
+                    <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+</div>
+
+<style>
+    .card {
+        transition: transform 0.2s;
+    }
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    }
+    .badge {
+        padding: 0.5em 0.8em;
+    }
+    .btn-group .btn {
+        margin: 0 0.2rem;
+    }
+    .modal-content {
+        border-radius: 0.5rem;
+    }
+    .modal-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle all payment forms
+    document.querySelectorAll('[id^="paymentForm"]').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const eventId = this.id.replace('paymentForm', '');
+            const cardNumber = document.getElementById('cardNumber' + eventId).value;
+            const expiryDate = document.getElementById('expiryDate' + eventId).value;
+            const cvv = document.getElementById('cvv' + eventId).value;
+            
+            // Simulate payment validation
+            if (cardNumber === '1234567890123456' || 
+                expiryDate === '12/25' || 
+                cvv === '123') {
+                alert('Invalid card details. Please use real card information.');
+                return;
+            }
+            
+            // If validation passes, submit the form
+            this.submit();
+        });
+    });
+
+    // Format card number input
+    document.querySelectorAll('[id^="cardNumber"]').forEach(input => {
+        input.addEventListener('input', function(e) {
+            this.value = this.value.replace(/\D/g, '').substr(0, 16);
+        });
+    });
+
+    // Format expiry date input
+    document.querySelectorAll('[id^="expiryDate"]').forEach(input => {
+        input.addEventListener('input', function(e) {
+            let value = this.value.replace(/\D/g, '');
+            if (value.length >= 2) {
+                value = value.substr(0, 2) + '/' + value.substr(2, 2);
+            }
+            this.value = value;
+        });
+    });
+
+    // Format CVV input
+    document.querySelectorAll('[id^="cvv"]').forEach(input => {
+        input.addEventListener('input', function(e) {
+            this.value = this.value.replace(/\D/g, '').substr(0, 3);
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,293 @@
+{% if user.is_authenticated %}
+<div id="chat-widget" class="chat-widget collapsed">
+    <div class="chat-header" onclick="toggleChat()">
+        <span class="chat-title">
+            <i class="bi bi-chat-dots"></i> Event Booking Assistant
+        </span>
+        <button class="chat-toggle">
+            <i class="bi bi-chevron-up"></i>
+        </button>
+    </div>
+    <div class="chat-body">
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-input">
+            <form id="chat-form" onsubmit="sendMessage(event)">
+                <input type="text" id="user-message" placeholder="Ask me anything..." required>
+                <button type="submit" id="send-button">
+                    <i class="bi bi-send"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.chat-widget {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 350px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    z-index: 1000;
+    transition: height 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-widget.collapsed {
+    height: 50px;
+}
+
+.chat-widget:not(.collapsed) {
+    height: 500px;
+}
+
+.chat-header {
+    padding: 10px 15px;
+    background: #007bff;
+    color: white;
+    border-radius: 10px 10px 0 0;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.chat-header:hover {
+    background: #0056b3;
+}
+
+.chat-body {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chat-messages {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 15px;
+}
+
+.chat-message {
+    margin-bottom: 10px;
+    max-width: 80%;
+    word-wrap: break-word;
+}
+
+.chat-message.user {
+    margin-left: auto;
+    background: #007bff;
+    color: white;
+    border-radius: 15px 15px 0 15px;
+    padding: 8px 12px;
+}
+
+.chat-message.bot {
+    margin-right: auto;
+    background: #f0f0f0;
+    border-radius: 15px 15px 15px 0;
+    padding: 8px 12px;
+}
+
+.chat-input {
+    padding: 10px;
+    border-top: 1px solid #eee;
+}
+
+#chat-form {
+    display: flex;
+    gap: 10px;
+}
+
+#user-message {
+    flex-grow: 1;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    outline: none;
+}
+
+#user-message:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+
+#send-button {
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 35px;
+    height: 35px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+#send-button:hover {
+    background: #0056b3;
+}
+
+.message-time {
+    font-size: 0.7em;
+    margin-top: 4px;
+    opacity: 0.7;
+}
+
+.collapsed .chat-body {
+    display: none;
+}
+
+.chat-toggle i {
+    transition: transform 0.3s;
+}
+
+.collapsed .chat-toggle i {
+    transform: rotate(180deg);
+}
+
+@media (max-width: 576px) {
+    .chat-widget {
+        width: 100%;
+        right: 0;
+        bottom: 0;
+        border-radius: 10px 10px 0 0;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("Chat widget initializing...");
+    
+    // Add welcome message when chat is first opened
+    const widget = document.getElementById('chat-widget');
+    if (widget) {
+        console.log("Chat widget found");
+        widget.querySelector('.chat-header').addEventListener('click', function() {
+            console.log("Chat header clicked");
+            toggleChat();
+        });
+    } else {
+        console.error("Chat widget not found");
+    }
+});
+
+function toggleChat() {
+    console.log("Toggling chat...");
+    const widget = document.getElementById('chat-widget');
+    widget.classList.toggle('collapsed');
+    
+    if (!widget.classList.contains('collapsed')) {
+        loadChatHistory();
+        document.getElementById('user-message').focus();
+    }
+}
+
+function loadChatHistory() {
+    console.log("Loading chat history...");
+    fetch('{% url "chatbot:history" %}')
+        .then(response => response.json())
+        .then(data => {
+            const messagesDiv = document.getElementById('chat-messages');
+            messagesDiv.innerHTML = '';
+            
+            // Add welcome message if no history
+            if (!data.history || data.history.length === 0) {
+                const welcomeMessage = `Hello ${document.querySelector('meta[name="username"]')?.content || 'there'}! 👋 How can I help you with event booking today?`;
+                appendMessage(welcomeMessage, true, new Date().toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute:'2-digit'}));
+            } else {
+                data.history.forEach(msg => {
+                    appendMessage(msg.message, msg.is_bot, msg.timestamp);
+                });
+            }
+            scrollToBottom();
+        })
+        .catch(error => {
+            console.error('Error loading chat history:', error);
+        });
+}
+
+function sendMessage(event) {
+    event.preventDefault();
+    const input = document.getElementById('user-message');
+    const message = input.value.trim();
+    if (!message) return;
+
+    const sendButton = document.getElementById('send-button');
+    sendButton.disabled = true;
+    input.disabled = true;
+
+    appendMessage(message, false, new Date().toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute:'2-digit'}));
+    input.value = '';
+    scrollToBottom();
+
+    const formData = new FormData();
+    formData.append('message', message);
+
+    fetch('{% url "chatbot:message" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.response) {
+            appendMessage(data.response, true, new Date().toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute:'2-digit'}));
+            scrollToBottom();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        appendMessage('Sorry, I encountered an error. Please try again.', true, new Date().toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute:'2-digit'}));
+    })
+    .finally(() => {
+        sendButton.disabled = false;
+        input.disabled = false;
+        input.focus();
+    });
+}
+
+function appendMessage(message, isBot, time) {
+    const messagesDiv = document.getElementById('chat-messages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${isBot ? 'bot' : 'user'}`;
+    messageDiv.innerHTML = `
+        ${message}
+        <div class="message-time">${time}</div>
+    `;
+    messagesDiv.appendChild(messageDiv);
+}
+
+function scrollToBottom() {
+    const messagesDiv = document.getElementById('chat-messages');
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Initialize console logging
+console.log("Chat widget script loaded");
+</script>
+{% endif %}

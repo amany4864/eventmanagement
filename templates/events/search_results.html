@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block title %}Search Results{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            {% if query %}
+                Search Results for "{{ query }}"
+            {% else %}
+                All Events
+            {% endif %}
+        </h1>
+        
+        <!-- Search Form -->
+        <form action="{% url 'events:search_events' %}" method="GET" class="d-flex">
+            <input type="search" name="q" class="form-control me-2" placeholder="Search events..." 
+                   value="{{ query|default:'' }}" aria-label="Search">
+            <button class="btn btn-outline-primary" type="submit">
+                <i class="bi bi-search"></i>
+            </button>
+        </form>
+    </div>
+
+    {% if events %}
+        <div class="row">
+            {% for event in events %}
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ event.title }}</h5>
+                            <p class="card-text">{{ event.description|truncatewords:30 }}</p>
+                            <div class="mb-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-calendar"></i> {{ event.date|date:"F d, Y - h:i A" }}
+                                </small>
+                            </div>
+                            <div class="mb-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-geo-alt"></i> {{ event.location }}
+                                </small>
+                            </div>
+                            <div class="mb-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-people"></i> Capacity: {{ event.capacity }}
+                                </small>
+                            </div>
+                            <div class="mb-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-cash"></i> Price: <b>₹</b>{{ event.price }}
+                                </small>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <a href="#" class="btn btn-primary btn-sm">View Details</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            {% if query %}
+                <i class="bi bi-info-circle"></i> No events found matching "{{ query }}".
+            {% else %}
+                <i class="bi bi-info-circle"></i> No upcoming events available.
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+
+<style>
+    .card {
+        transition: transform 0.2s;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+</style>
+{% endblock %}
